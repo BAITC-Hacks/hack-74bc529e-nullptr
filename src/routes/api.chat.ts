@@ -1,0 +1,49 @@
+import { createFileRoute } from '@tanstack/react-router'
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { createOpenaiChat } from '@tanstack/ai-openai'
+import { env } from 'cloudflare:workers'
+import { privateApi } from '../lib/api.server'
+import { readJson } from '../lib/http'
+import { chatInput } from '../lib/validation'
+
+export const Route = createFileRoute('/api/chat')({
+  server: {
+    handlers: {
+      POST: ({ request }) =>
+        privateApi(request, async () => {
+          const body = chatInput.parse(await readJson(request, 128_000))
+          if (!env.OPENAI_API_KEY) {
+            return Response.json(
+              { error: 'AI chat is not configured.' },
+              { status: 503 },
+            )
+          }
+          const { messages, threadId, runId } =
+            await chatParamsFromRequestBody(body)
+          const abortController = new AbortController()
+          if (request.signal.aborted) abortController.abort()
+          request.signal.addEventListener(
+            'abort',
+            () => abortController.abort(),
+            { once: true },
+          )
+          const stream = chat({
+            adapter: createOpenaiChat('gpt-4.1-mini', env.OPENAI_API_KEY),
+            messages,
+            threadId,
+            runId,
+            systemPrompts: [
+              'You are the Hackalem hackathon assistant. Help the user turn ideas into practical, concise next steps.',
+            ],
+            abortController,
+            modelOptions: { max_output_tokens: 4096 },
+          })
+          return toServerSentEventsResponse(stream)
+        }),
+    },
+  },
+})

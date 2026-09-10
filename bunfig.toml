@@ -1,0 +1,2 @@
+# Miniflare needs the complete npm Undici dispatcher API.
+preload = ["./scripts/bun-compat.ts"]

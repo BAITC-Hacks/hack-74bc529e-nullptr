@@ -1,0 +1,55 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "hackalem-local",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-09-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_URL": "http://localhost:3000",
+    "VECTOR_SEARCH_ENABLED": "false",
+  },
+  "kv_namespaces": [{ "binding": "KV" }],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hackalem-local",
+      "migrations_dir": "drizzle",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "hackalem-local-files" },
+  ],
+  // Vectorize has no local implementation. Add a remote dev binding to opt in.
+  "env": {
+    "production": {
+      "name": "hackalem",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "hackalem.abzal.dev", "custom_domain": true }],
+      "vars": {
+        "APP_URL": "https://hackalem.abzal.dev",
+        "VECTOR_SEARCH_ENABLED": "true",
+      },
+      "kv_namespaces": [
+        { "binding": "KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "hackalem-db",
+          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+          "migrations_dir": "drizzle",
+        },
+      ],
+      "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "hackalem-files" }],
+      "vectorize": [
+        {
+          "binding": "VECTORIZE",
+          "index_name": "hackalem-vectors",
+          "remote": true,
+        },
+      ],
+    },
+  },
+}
