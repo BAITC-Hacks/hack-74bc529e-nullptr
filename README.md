@@ -20,6 +20,8 @@ Open **http://localhost:3000**. The public landing page works without credential
 
 Add your Clerk development publishable key to `.env`, and the matching secret key and an OpenAI API key to `.dev.vars`. Restart the dev server after changing keys.
 
+`bunfig.toml` disables Bun's automatic `.env` loading so Vite and Wrangler can select their own environment files. This prevents a development key in `.env` from overriding `.env.production` during production builds.
+
 | Variable                     | Where                       | Purpose                                                  |
 | ---------------------------- | --------------------------- | -------------------------------------------------------- |
 | `VITE_CLERK_PUBLISHABLE_KEY` | `.env` / build environment  | Public Clerk key, embedded by Vite                       |
