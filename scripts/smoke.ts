@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 
 const base = process.env.SMOKE_URL ?? 'http://127.0.0.1:3000'
+const deniedStatuses =
+  process.env.SMOKE_REQUIRE_AUTH === 'true' ? [401] : [401, 503]
 const home = await fetch(base)
 assert.equal(home.status, 200)
 assert.match(await home.text(), /Big ideas/)
@@ -24,7 +26,7 @@ for (const [path, method] of [
 ] as const) {
   const response = await fetch(`${base}${path}`, { method, redirect: 'manual' })
   assert.ok(
-    [401, 503].includes(response.status),
+    deniedStatuses.includes(response.status),
     `${method} ${path}: expected denied access, got ${response.status}`,
   )
   assert.equal(response.headers.get('Cache-Control'), 'private, no-store')

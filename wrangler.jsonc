@@ -24,6 +24,7 @@
   "env": {
     "production": {
       "name": "hackalem",
+      "account_id": "08c87221ba19a69eecc91d626b73bdc0",
       "workers_dev": false,
       "preview_urls": false,
       "routes": [{ "pattern": "hackalem.abzal.dev", "custom_domain": true }],
@@ -32,13 +33,13 @@
         "VECTOR_SEARCH_ENABLED": "true",
       },
       "kv_namespaces": [
-        { "binding": "KV", "id": "REPLACE_WITH_KV_NAMESPACE_ID" },
+        { "binding": "KV", "id": "256ce801c97c4f3e933d9784a3299b81" },
       ],
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "hackalem-db",
-          "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+          "database_id": "304dbe99-62fa-4737-a251-ff1e8db100bf",
           "migrations_dir": "drizzle",
         },
       ],

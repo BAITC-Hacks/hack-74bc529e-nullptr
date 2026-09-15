@@ -87,20 +87,16 @@ Use a separate development index. Embeddings call OpenAI and the index is a real
 
 ## Deploy to Cloudflare Workers
 
-The repository contains deployment configuration; it has **not provisioned resources or deployed a Worker**. `env.production` targets `hackalem.abzal.dev`; local storage is configured separately. The domain must belong to an active Cloudflare zone in your account.
+There is one deployment target: **production**, at `hackalem.abzal.dev`. Local development uses emulated storage; there is no staging deployment. The domain must belong to an active Cloudflare zone in your account. Complete the one-time setup below before the first deployment.
 
-1. Authenticate and create the production resources:
+1. Authenticate to the production account:
 
    ```sh
    bun run cf login
    bun run cf whoami
-   bun run cf kv namespace create hackalem-kv
-   bun run cf d1 create hackalem-db
-   bun run cf r2 bucket create hackalem-files
-   bun run cf vectorize create hackalem-vectors --dimensions 1536 --metric cosine
    ```
 
-2. Copy the returned KV and D1 IDs into **`env.production`** in `wrangler.jsonc`, replacing the two `REPLACE_WITH_...` values. Set an `account_id` there if you need to select a specific account. Keep the bucket and index names aligned with those created above.
+2. Production resources are configured in **`env.production`** in `wrangler.jsonc`, under the `abzy` account: `hackalem-kv`, `hackalem-db`, `hackalem-files`, and `hackalem-vectors` (1536 dimensions, cosine). KV/D1 IDs and the account ID are committed configuration, not secrets. Reuse these resources for subsequent deployments.
 
 3. Configure a **production Clerk instance** for `hackalem.abzal.dev` and complete Clerk’s domain/DNS setup. Put its public `pk_live_...` key in an ignored `.env.production` file (or `VITE_CLERK_PUBLISHABLE_KEY` in CI). Vite embeds this key at build time; setting it only as a Worker variable is insufficient.
 
@@ -122,7 +118,38 @@ The repository contains deployment configuration; it has **not provisioned resou
 
 `deploy` validates the production IDs, live public key, and required secret names, builds with `CLOUDFLARE_ENV=production`, applies remote D1 migrations, then deploys. `deploy:dry-run` builds and packages without applying migrations, creating resources, or publishing; it also works while resource IDs remain placeholders. Cloudflare’s custom-domain route manages the Worker’s DNS/TLS once deployment succeeds.
 
-For Cloudflare Workers Builds, set the build command to `bun install --frozen-lockfile && bun run check`, the deploy command to `bun run deploy`, and provide the production publishable key in the build environment. The build identity needs access to the configured storage resources and Worker secrets. Production secrets remain Wrangler-managed; never prefix a secret with `VITE_`.
+### Cloudflare Workers Builds
+
+Cloudflare builds and deploys pushes to **main**. Connect **BAITC-Hacks/hack-74bc529e-nullptr** in the Worker’s **Settings → Builds** with these settings:
+
+| Setting                            | Value                                            |
+| ---------------------------------- | ------------------------------------------------ |
+| Worker name                        | `hackalem`                                       |
+| Production branch                  | `main`                                           |
+| Root directory                     | Repository root                                  |
+| Build command                      | `bun install --frozen-lockfile && bun run check` |
+| Deploy command                     | `bun run deploy:ci`                              |
+| Builds for non-production branches | Disabled                                         |
+
+Set build variables `BUN_VERSION=1.4.0` and `VITE_CLERK_PUBLISHABLE_KEY=pk_live_...`. The build command checks the app; the deploy command validates production configuration, builds for production, applies D1 migrations, deploys, and verifies the live site. Leave `CLOUDFLARE_ENV` unset globally: the production build script sets it explicitly while local checks use emulated storage.
+
+Use Cloudflare’s generated build API token, and add **D1 Edit** and **Vectorize Edit** permissions for this account to its default Worker, route, KV, and R2 permissions. No Cloudflare token is needed in GitHub. See [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
+
+`CLERK_SECRET_KEY` and `OPENAI_API_KEY` belong in **Worker secrets**, set once with the commands above. Build variables and Worker secrets are separate. CI verifies secret names and preserves their values on deployment. Never prefix a secret with `VITE_`.
+
+After deployment, smoke checks verify the public page, health endpoint, cross-origin rejection, and anonymous denial on every private API. Production must return `401` for anonymous API requests; `503` (missing auth configuration) fails verification. These checks do not verify interactive Google login or paid AI calls.
+
+GitHub Actions is only an optional pull-request/manual check. It does not deploy and is not required by Workers Builds.
+
+### Google sign-in through Clerk
+
+1. In Clerk, select the **production** instance, configure `hackalem.abzal.dev`, and complete its DNS verification.
+2. Add a **Google** connection for all users. Enable sign-up/sign-in and custom credentials; copy the Authorized Redirect URI Clerk displays.
+3. In Google Cloud, create an OAuth client with type **Web application**. Set the JavaScript origin to `https://hackalem.abzal.dev` and paste Clerk's exact URI into Authorized redirect URIs.
+4. Save Google's client ID and client secret in the Clerk connection. These are not application environment variables.
+5. Set Google's OAuth publishing status to **In production** for public access, and test the connection through Clerk's Account Portal and then the deployed app.
+
+Follow [Clerk's Google connection guide](https://clerk.com/docs/guides/configure/auth-strategies/social-connections/google). The existing Clerk sign-in modal displays enabled providers automatically; no Google-specific app code or callback route is needed.
 
 ## Commands and checks
 

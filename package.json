@@ -21,6 +21,7 @@
     "deploy:check": "bun scripts/check-production.ts",
     "deploy:dry-run": "bun run build:production && bun --bun wrangler deploy --dry-run --env production",
     "deploy": "bun run deploy:check && bun run build:production && bun run db:migrate:production && bun --bun wrangler deploy --env production",
+    "deploy:ci": "bun run deploy && SMOKE_URL=https://hackalem.abzal.dev SMOKE_REQUIRE_AUTH=true bun run test:smoke",
     "format": "bun --bun prettier --write .",
     "format:check": "bun --bun prettier --check .",
     "test": "bun test",
