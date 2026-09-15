@@ -7,6 +7,7 @@ import {
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { env } from 'cloudflare:workers'
 import { privateApi } from '../lib/api.server'
+import { requireAiAccess } from '../lib/ai-access.server'
 import { readJson } from '../lib/http'
 import { chatInput } from '../lib/validation'
 
@@ -14,7 +15,8 @@ export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: ({ request }) =>
-        privateApi(request, async () => {
+        privateApi(request, async (userId) => {
+          await requireAiAccess(userId)
           const body = chatInput.parse(await readJson(request, 128_000))
           if (!env.OPENAI_API_KEY) {
             return Response.json(

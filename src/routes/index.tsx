@@ -1,5 +1,10 @@
-import { Show, SignInButton, UserButton } from '@clerk/tanstack-react-start'
-import { createFileRoute } from '@tanstack/react-router'
+import {
+  Show,
+  SignInButton,
+  UserButton,
+  useAuth,
+} from '@clerk/tanstack-react-start'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import {
   ArrowUpRight,
   Lightbulb,
@@ -8,7 +13,7 @@ import {
   Paperclip,
   Sparkles,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChatPanel } from '../components/chat-panel'
 import { NotesPanel } from '../components/notes-panel'
 import { FilesPanel } from '../components/files-panel'
@@ -174,6 +179,12 @@ function Workspace({
   searchEnabled: boolean
 }) {
   const [tab, setTab] = useState<'notes' | 'chat' | 'files'>('notes')
+  const { userId } = useAuth()
+  const router = useRouter()
+  useEffect(() => {
+    void router.invalidate()
+  }, [router, userId])
+  const activeTab = tab === 'chat' && !chatEnabled ? 'notes' : tab
   return (
     <section className="workspace">
       <div className="section-heading">
@@ -187,42 +198,46 @@ function Workspace({
             { id: 'chat', label: 'AI chat', icon: MessageSquare },
             { id: 'files', label: 'Files', icon: Paperclip },
           ] as const
-        ).map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            id={`tab-${id}`}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            aria-controls={`panel-${id}`}
-            onClick={() => setTab(id)}
-          >
-            <Icon size={16} />
-            {label}
-          </button>
-        ))}
+        )
+          .filter(({ id }) => id !== 'chat' || chatEnabled)
+          .map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              id={`tab-${id}`}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === id}
+              aria-controls={`panel-${id}`}
+              onClick={() => setTab(id)}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          ))}
       </div>
       <div
         role="tabpanel"
         id="panel-notes"
         aria-labelledby="tab-notes"
-        hidden={tab !== 'notes'}
+        hidden={activeTab !== 'notes'}
       >
         <NotesPanel searchEnabled={searchEnabled} />
       </div>
-      <div
-        role="tabpanel"
-        id="panel-chat"
-        aria-labelledby="tab-chat"
-        hidden={tab !== 'chat'}
-      >
-        <ChatPanel enabled={chatEnabled} />
-      </div>
+      {chatEnabled && (
+        <div
+          role="tabpanel"
+          id="panel-chat"
+          aria-labelledby="tab-chat"
+          hidden={activeTab !== 'chat'}
+        >
+          <ChatPanel enabled={chatEnabled} />
+        </div>
+      )}
       <div
         role="tabpanel"
         id="panel-files"
         aria-labelledby="tab-files"
-        hidden={tab !== 'files'}
+        hidden={activeTab !== 'files'}
       >
         <FilesPanel />
       </div>

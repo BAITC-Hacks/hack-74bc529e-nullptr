@@ -34,6 +34,18 @@ Use matching keys from the same [Clerk application](https://dashboard.clerk.com/
 
 Bun runs the package manager, Vite, Wrangler, Drizzle, scripts, and tests. Application server code runs inside **workerd** locally and the **Workers runtime** in production. `bunfig.toml` loads a small compatibility fix for [Bun’s incomplete Undici dispatcher](https://github.com/oven-sh/bun/issues/39247); it uses the installed npm implementation and never enters the Worker bundle.
 
+## AI access
+
+Chat, semantic search, and note indexing require explicit approval. In **Clerk → Users → select user → Private metadata**, merge this permission into the user's existing metadata:
+
+```json
+{ "aiAccess": true }
+```
+
+Only the boolean `true` grants access. Remove it or set it to `false` to revoke access. The server reads Clerk's private metadata on every paid request, before accessing OpenAI. There is no session-claim cache or client-controlled permission. Missing permissions and failed Clerk lookups deny access with `403`; anonymous requests return `401`. Notes, drafts, and files still work for other signed-in users. AI controls are hidden for them.
+
+Refresh the page after changing a permission to update the visible controls. Server enforcement takes effect on the next request; already-running requests may finish. When the hackathon key arrives, replace the Worker's `OPENAI_API_KEY` and grant access to the intended users. Key rotation does not automatically grant everyone access.
+
 ## Included examples
 
 | Feature                  | Implementation                                                                                         |

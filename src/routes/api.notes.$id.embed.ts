@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm'
 import { getDb } from '../db/index.server'
 import { notes } from '../db/schema'
 import { privateApi } from '../lib/api.server'
+import { requireAiAccess } from '../lib/ai-access.server'
 import { indexNote } from '../lib/search.server'
 import { idInput } from '../lib/validation'
 
@@ -11,6 +12,7 @@ export const Route = createFileRoute('/api/notes/$id/embed')({
     handlers: {
       POST: ({ request, params }) =>
         privateApi(request, async (userId) => {
+          await requireAiAccess(userId)
           const id = idInput.parse(params.id)
           const note = await getDb()
             .select()

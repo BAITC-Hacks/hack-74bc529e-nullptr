@@ -4,6 +4,20 @@ import { Miniflare } from 'miniflare'
 // Exercise the real route handlers and local Cloudflare storage with two test identities.
 // Clerk's remote session exchange is intentionally outside this offline test.
 let userId: string | null = 'user_alice'
+let metadata: Record<string, unknown> = {}
+let clerkUnavailable = false
+const getUser = mock(async (_id: string) => {
+  if (clerkUnavailable) throw new Error('Clerk unavailable')
+  return {
+    privateMetadata: metadata,
+    // These must never grant access, even when supplied by the client.
+    publicMetadata: { aiAccess: true },
+    unsafeMetadata: { aiAccess: true },
+  }
+})
+mock.module('@clerk/tanstack-react-start/server', () => ({
+  clerkClient: () => ({ users: { getUser } }),
+}))
 const bindings = { VECTOR_SEARCH_ENABLED: 'false' } as Cloudflare.Env
 mock.module('cloudflare:workers', () => ({ env: bindings }))
 mock.module('../src/lib/auth.server', () => ({
@@ -19,6 +33,9 @@ const { Route: note } = await import('../src/routes/api.notes.$id')
 const { Route: draft } = await import('../src/routes/api.draft')
 const { Route: files } = await import('../src/routes/api.files')
 const { Route: file } = await import('../src/routes/api.files.$id')
+const { Route: chat } = await import('../src/routes/api.chat')
+const { Route: search } = await import('../src/routes/api.search')
+const { Route: indexNote } = await import('../src/routes/api.notes.$id.embed')
 let mf: Miniflare
 
 beforeAll(async () => {
@@ -167,4 +184,57 @@ test('private handlers reject unauthenticated access before storage operations',
   expect((await call(notes, 'GET')).status).toBe(401)
   expect((await call(files, 'POST')).status).toBe(401)
   expect((await call(draft, 'GET')).status).toBe(401)
+})
+
+test('all paid AI routes deny unapproved users before validation or provider calls', async () => {
+  userId = 'user_bob'
+  const originalFetch = globalThis.fetch
+  const paidFetch = mock(() => {
+    throw new Error('No provider request should occur')
+  })
+  globalThis.fetch = paidFetch as unknown as typeof fetch
+  try {
+    for (const permission of [undefined, false, 'true', 1]) {
+      metadata = { aiAccess: permission }
+      for (const route of [chat, search, indexNote]) {
+        const response = await call(route, 'POST', { aiAccess: true })
+        expect(response.status).toBe(403)
+        expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+      }
+    }
+    expect(paidFetch).not.toHaveBeenCalled()
+    expect(getUser).toHaveBeenLastCalledWith('user_bob')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('approval allows handlers to proceed; revocation and Clerk failures immediately deny access', async () => {
+  userId = 'user_alice'
+  metadata = { aiAccess: true }
+  for (const route of [chat, search, indexNote]) {
+    // Invalid input reaches validation only after the real permission check.
+    expect((await call(route, 'POST', {})).status).toBe(400)
+  }
+  metadata = {}
+  expect((await call(chat, 'POST', {})).status).toBe(403)
+  metadata = { aiAccess: true }
+  clerkUnavailable = true
+  try {
+    for (const route of [chat, search, indexNote])
+      expect((await call(route, 'POST', {})).status).toBe(403)
+    // Non-AI features remain available during an authorization service failure.
+    expect((await call(notes, 'GET')).status).toBe(200)
+  } finally {
+    clerkUnavailable = false
+    metadata = {}
+  }
+})
+
+test('anonymous AI requests are rejected before looking up a permission', async () => {
+  userId = null
+  getUser.mockClear()
+  for (const route of [chat, search, indexNote])
+    expect((await call(route, 'POST', {})).status).toBe(401)
+  expect(getUser).not.toHaveBeenCalled()
 })
