@@ -1,4 +1,16 @@
 import { z } from 'zod'
+import { isChatModel } from './chat-models'
+
+const chatOptions = z
+  .object({
+    model: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine(isChatModel, 'Unsupported chat model.')
+      .optional(),
+  })
+  .strict()
 
 export const noteInput = z
   .object({
@@ -42,7 +54,7 @@ export const chatInput = z
     tools: z.array(z.never()).optional(),
     context: z.array(z.never()).optional(),
     state: z.unknown().optional(),
-    forwardedProps: z.object({}).strict().optional(),
-    data: z.object({}).strict().optional(),
+    forwardedProps: chatOptions.optional(),
+    data: chatOptions.optional(),
   })
   .strict()

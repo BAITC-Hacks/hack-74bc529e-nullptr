@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { chatParamsFromRequestBody, type UIMessage } from '@tanstack/ai'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { chatInput } from '../src/lib/validation'
+import { isChatModel } from '../src/lib/chat-models'
 
 test('current TanStack AI SSE transport produces a valid server request, including conversation history', async () => {
   const messages: UIMessage[] = [
@@ -34,10 +35,13 @@ test('current TanStack AI SSE transport produces a valid server request, includi
   }) as typeof fetch
   const connection = fetchServerSentEvents('http://localhost/api/chat', {
     fetchClient,
+    body: { model: 'gpt-5.6-sol' },
   })
   for await (const event of connection.connect(messages))
     expect(event.type).toBeDefined()
   const parsed = chatInput.parse(captured)
+  expect(parsed.forwardedProps?.model).toBe('gpt-5.6-sol')
+  expect(parsed.data?.model).toBe('gpt-5.6-sol')
   const params = await chatParamsFromRequestBody(parsed)
   expect(params.messages).toHaveLength(3)
   expect(params.threadId).toBeDefined()
@@ -74,6 +78,50 @@ test('rejects client system prompts, tools, excessive history, and non-text inpu
           content: [{ type: 'image', url: 'https://example.com' }],
         },
       ],
+    }).success,
+  ).toBe(false)
+})
+
+test('model selection only accepts the curated models', () => {
+  for (const model of ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'])
+    expect(isChatModel(model)).toBe(true)
+  for (const model of [
+    'gpt-4.1-mini',
+    'gpt-5-mini',
+    'gpt-6-astra',
+    'text-embedding-3-small',
+    'gpt-image-1',
+    'gpt-4o-audio-preview',
+    'gpt-4o-search-preview',
+    'o3-deep-research',
+    'gpt-4',
+    'gpt-4-turbo',
+    'whisper-1',
+  ]) {
+    expect(isChatModel(model)).toBe(false)
+    expect(
+      chatInput.safeParse({
+        threadId: 't',
+        runId: 'r',
+        messages: [{ id: 'm', role: 'user', content: 'hello' }],
+        forwardedProps: { model },
+      }).success,
+    ).toBe(false)
+  }
+  const input = {
+    threadId: 't',
+    runId: 'r',
+    messages: [{ id: 'm', role: 'user', content: 'hello' }],
+  }
+  expect(chatInput.safeParse(input).success).toBe(true)
+  expect(
+    chatInput.safeParse({ ...input, forwardedProps: { model: 'gpt-image-1' } })
+      .success,
+  ).toBe(false)
+  expect(
+    chatInput.safeParse({
+      ...input,
+      forwardedProps: { model: 'gpt-5.6-sol', systemPrompt: 'override' },
     }).success,
   ).toBe(false)
 })
