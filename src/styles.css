@@ -803,3 +803,23 @@ textarea::placeholder {
     transition: none !important;
   }
 }
+
+.model-selector {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  color: #536946;
+  font-size: 12px;
+}
+.model-selector select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #dfe6d6;
+  border-radius: 8px;
+  background: #f9fbf4;
+  color: inherit;
+  font: inherit;
+}

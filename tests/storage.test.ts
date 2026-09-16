@@ -238,3 +238,60 @@ test('anonymous AI requests are rejected before looking up a permission', async 
     expect((await call(route, 'POST', {})).status).toBe(401)
   expect(getUser).not.toHaveBeenCalled()
 })
+
+test('models endpoint requires approval and returns filtered OpenAI model IDs', async () => {
+  const { Route: models } = await import('../src/routes/api.models')
+  const originalFetch = globalThis.fetch
+  const originalKey = bindings.OPENAI_API_KEY
+  const providerFetch = mock(async () =>
+    Response.json({
+      data: [
+        { id: 'gpt-5.6-sol' },
+        { id: 'text-embedding-3-small' },
+        { id: 'gpt-4.1-mini' },
+        { id: 'gpt-5.6-terra' },
+        { id: 'gpt-5.6-sol' },
+        { id: 'gpt-4o-audio-preview' },
+      ],
+    }),
+  )
+  globalThis.fetch = providerFetch as unknown as typeof fetch
+  try {
+    userId = null
+    expect((await call(models, 'GET')).status).toBe(401)
+    userId = 'user_alice'
+    metadata = {}
+    expect((await call(models, 'GET')).status).toBe(403)
+    expect(providerFetch).not.toHaveBeenCalled()
+    metadata = { aiAccess: true }
+    bindings.OPENAI_API_KEY = ''
+    expect((await call(models, 'GET')).status).toBe(503)
+    bindings.OPENAI_API_KEY = 'test-key'
+    const response = await call(models, 'GET')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    expect((await response.json()) as unknown).toEqual({
+      models: ['gpt-5.6-sol', 'gpt-5.6-terra'],
+      defaultModel: 'gpt-5.6-terra',
+    })
+    expect(providerFetch).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/models',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer test-key' },
+      }),
+    )
+    globalThis.fetch = (async () =>
+      new Response('private upstream error', {
+        status: 401,
+      })) as unknown as typeof fetch
+    const failure = await call(models, 'GET')
+    expect(failure.status).toBe(502)
+    expect((await failure.json()) as unknown).toEqual({
+      error: 'Could not load models. Try again.',
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+    bindings.OPENAI_API_KEY = originalKey
+    metadata = {}
+  }
+})

@@ -2,12 +2,17 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { ArrowUp, MessageSquare, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
+import { DEFAULT_CHAT_MODEL } from '../lib/chat-models'
+import { ModelSelector } from './model-selector'
+
 const connection = fetchServerSentEvents('/api/chat')
 
 export function ChatPanel({ enabled }: { enabled: boolean }) {
   const [input, setInput] = useState('')
+  const [model, setModel] = useState(DEFAULT_CHAT_MODEL)
   const { messages, sendMessage, isLoading, stop, error } = useChat({
     connection,
+    body: { model },
   })
   const bottom = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -16,6 +21,12 @@ export function ChatPanel({ enabled }: { enabled: boolean }) {
 
   return (
     <div className="panel">
+      <ModelSelector
+        value={model}
+        onChange={setModel}
+        enabled={enabled}
+        disabled={isLoading}
+      />
       <div className="chat-messages" aria-live="polite" aria-busy={isLoading}>
         {!messages.length && (
           <div className="empty-state">
