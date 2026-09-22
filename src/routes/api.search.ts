@@ -12,8 +12,8 @@ export const Route = createFileRoute('/api/search')({
   server: {
     handlers: {
       POST: ({ request }) =>
-        privateApi(request, async (userId) => {
-          await requireAiAccess(userId)
+        privateApi(request, async (userId, log) => {
+          await requireAiAccess(userId, log)
           const { query } = searchInput.parse(await readJson(request))
           const result = await searchNotes(userId, query)
           if (!result.matches.length) return Response.json([])

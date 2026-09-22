@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, mock, test } from 'bun:test'
+import { afterAll, beforeAll, expect, mock, spyOn, test } from 'bun:test'
 import { Miniflare } from 'miniflare'
 
 // Exercise the real route handlers and local Cloudflare storage with two test identities.
@@ -36,7 +36,50 @@ const { Route: file } = await import('../src/routes/api.files.$id')
 const { Route: chat } = await import('../src/routes/api.chat')
 const { Route: search } = await import('../src/routes/api.search')
 const { Route: indexNote } = await import('../src/routes/api.notes.$id.embed')
+const { privateApi } = await import('../src/lib/api.server')
 let mf: Miniflare
+
+test('API response IDs correlate success, denial and exception logs without exposing errors', async () => {
+  const info = spyOn(console, 'info').mockImplementation(() => {})
+  const warn = spyOn(console, 'warn').mockImplementation(() => {})
+  const error = spyOn(console, 'error').mockImplementation(() => {})
+  const originalUser = userId
+  try {
+    const request = new Request('https://example.com/api/notes?secret=hidden')
+    userId = 'user_alice'
+    const success = await privateApi(request, async () =>
+      Response.json({ ok: true }),
+    )
+    expect(info.mock.calls[0]![0]).toMatchObject({
+      status: 200,
+      requestId: success.headers.get('X-Request-ID'),
+    })
+    const failure = await privateApi(request, async () => {
+      throw new Error('private provider payload')
+    })
+    expect(failure.status).toBe(500)
+    expect(error.mock.calls[0]![0]).toMatchObject({
+      event: 'api.failed',
+      requestId: failure.headers.get('X-Request-ID'),
+    })
+    userId = null
+    const handler = mock(async () => Response.json({ ok: true }))
+    const denied = await privateApi(request, handler)
+    expect(handler).not.toHaveBeenCalled()
+    expect(warn.mock.calls[0]![0]).toMatchObject({
+      status: 401,
+      requestId: denied.headers.get('X-Request-ID'),
+    })
+    expect(
+      JSON.stringify([info.mock.calls, warn.mock.calls, error.mock.calls]),
+    ).not.toMatch(/hidden|private provider payload/)
+  } finally {
+    userId = originalUser
+    info.mockRestore()
+    warn.mockRestore()
+    error.mockRestore()
+  }
+})
 
 beforeAll(async () => {
   mf = new Miniflare({

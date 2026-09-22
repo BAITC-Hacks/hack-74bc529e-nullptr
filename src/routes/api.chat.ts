@@ -11,13 +11,14 @@ import { requireAiAccess } from '../lib/ai-access.server'
 import { readJson } from '../lib/http'
 import { chatInput } from '../lib/validation'
 import { DEFAULT_CHAT_MODEL } from '../lib/chat-models'
+import { chatLogging } from '../lib/logging.server'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
     handlers: {
       POST: ({ request }) =>
-        privateApi(request, async (userId) => {
-          await requireAiAccess(userId)
+        privateApi(request, async (userId, log) => {
+          await requireAiAccess(userId, log)
           const body = chatInput.parse(await readJson(request, 128_000))
           if (!env.OPENAI_API_KEY) {
             return Response.json(
@@ -34,12 +35,12 @@ export const Route = createFileRoute('/api/chat')({
             () => abortController.abort(),
             { once: true },
           )
+          const model =
+            body.forwardedProps?.model ?? body.data?.model ?? DEFAULT_CHAT_MODEL
           const stream = chat({
             // Model IDs come from OpenAI, which may add models ahead of the SDK types.
             adapter: createOpenaiChat(
-              (body.forwardedProps?.model ??
-                body.data?.model ??
-                DEFAULT_CHAT_MODEL) as OpenAIChatModel,
+              model as OpenAIChatModel,
               env.OPENAI_API_KEY,
             ),
             messages,
@@ -49,9 +50,10 @@ export const Route = createFileRoute('/api/chat')({
               'You are the Hackalem hackathon assistant. Help the user turn ideas into practical, concise next steps.',
             ],
             abortController,
+            middleware: [chatLogging(log, model)],
             modelOptions: { max_output_tokens: 4096 },
           })
-          return toServerSentEventsResponse(stream)
+          return toServerSentEventsResponse(stream, { abortController })
         }),
     },
   },

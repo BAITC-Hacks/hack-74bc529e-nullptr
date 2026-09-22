@@ -11,8 +11,8 @@ export const Route = createFileRoute('/api/notes/$id/embed')({
   server: {
     handlers: {
       POST: ({ request, params }) =>
-        privateApi(request, async (userId) => {
-          await requireAiAccess(userId)
+        privateApi(request, async (userId, log) => {
+          await requireAiAccess(userId, log)
           const id = idInput.parse(params.id)
           const note = await getDb()
             .select()

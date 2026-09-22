@@ -11,8 +11,8 @@ export const Route = createFileRoute('/api/models')({
   server: {
     handlers: {
       GET: ({ request }) =>
-        privateApi(request, async (userId) => {
-          await requireAiAccess(userId)
+        privateApi(request, async (userId, log) => {
+          await requireAiAccess(userId, log)
           if (!env.OPENAI_API_KEY) {
             return Response.json(
               { error: 'AI chat is not configured.' },

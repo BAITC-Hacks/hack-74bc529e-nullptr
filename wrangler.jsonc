@@ -4,7 +4,15 @@
   "main": "@tanstack/react-start/server-entry",
   "compatibility_date": "2026-09-10",
   "compatibility_flags": ["nodejs_compat"],
-  "observability": { "enabled": true },
+  "observability": {
+    "enabled": true,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1,
+    },
+  },
   "vars": {
     "APP_URL": "http://localhost:3000",
     "VECTOR_SEARCH_ENABLED": "false",
